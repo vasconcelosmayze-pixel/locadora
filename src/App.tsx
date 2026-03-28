@@ -1,0 +1,425 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  UserPlus, 
+  Bike, 
+  FileText, 
+  Camera, 
+  Send, 
+  ArrowLeft, 
+  MapPin, 
+  Phone,
+  Clock,
+  CheckCircle2,
+  Receipt,
+  ShieldCheck
+} from 'lucide-react';
+import { cn } from './lib/utils';
+import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES } from './types';
+import confetti from 'canvas-confetti';
+
+const WHATSAPP_NUMBER = '5592995197573';
+const ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
+const LOGO_URL = 'https://raw.githubusercontent.com/stackblitz/stackblitz-images/main/juan-motos-logo.png'; // Placeholder, user should replace with actual logo
+
+type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract';
+
+const CONTRACT_TEXT = `
+CONTRATO DE LOCAÇÃO DE VEÍCULO - JUAN MOTOS
+
+1. OBJETO: O presente contrato tem por objeto a locação de veículo automotor (motocicleta) de propriedade da LOCADORA JUAN MOTOS.
+2. PRAZO: A locação é diária, iniciando-se na parte da manhã e encerrando-se impreterivelmente às 18:00h do mesmo dia.
+3. VALORES: Os valores variam conforme o modelo da moto (Biz Antiga: R$35, Biz Nova: R$40, Pop Nova: R$50, Fan 2020: R$80).
+4. RESPONSABILIDADE: O LOCATÁRIO é inteiramente responsável por quaisquer danos causados ao veículo, a terceiros ou infrações de trânsito cometidas durante o período de locação.
+5. DEVOLUÇÃO: O veículo deve ser devolvido com a mesma quantidade de combustível e nas mesmas condições de conservação em que foi entregue.
+6. FORO: Fica eleito o foro da comarca local para dirimir quaisquer dúvidas oriundas deste contrato.
+`;
+
+export default function App() {
+  const [currentView, setCurrentView] = useState<View>('home');
+  const [selectedMoto, setSelectedMoto] = useState<MotoModel | null>(null);
+  const [customerData, setCustomerData] = useState<Partial<Customer>>({});
+  const [isContractAccepted, setIsContractAccepted] = useState(false);
+
+  const handleWhatsAppRedirect = (message: string) => {
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  const capturePhoto = (type: 'photo' | 'rgPhoto') => {
+    // In a real app, this would use the camera API
+    // For this demo, we'll simulate a capture
+    const simulatedUrl = `https://picsum.photos/seed/${Math.random()}/400/300`;
+    setCustomerData(prev => ({ ...prev, [type]: simulatedUrl }));
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+  };
+
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isContractAccepted) {
+      alert('Você precisa aceitar o contrato para continuar.');
+      return;
+    }
+    const message = `*NOVO CADASTRO - JUAN MOTOS*\n\n` +
+      `*Nome:* ${customerData.name}\n` +
+      `*RG:* ${customerData.rg}\n` +
+      `*CPF:* ${customerData.cpf}\n` +
+      `*Telefone:* ${customerData.phone}\n` +
+      `*Endereço:* ${customerData.address}\n\n` +
+      `_Contrato aceito e vinculado._`;
+    handleWhatsAppRedirect(message);
+    setCurrentView('home');
+  };
+
+  const handleRentalSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMoto) return;
+    const message = `*ALUGUEL DE MOTO - JUAN MOTOS*\n\n` +
+      `*Moto:* ${MOTO_NAMES[selectedMoto]}\n` +
+      `*Valor:* R$ ${MOTO_PRICES[selectedMoto]},00\n` +
+      `*Período:* Manhã até as 18h\n` +
+      `*Cliente:* ${customerData.name || 'Não informado'}\n\n` +
+      `_Contrato de locação vinculado._`;
+    handleWhatsAppRedirect(message);
+    setCurrentView('home');
+  };
+
+  const handleReceiptSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const message = `*RECIBO - JUAN MOTOS*\n\n` +
+      `*Recebemos de:* ${customerData.name}\n` +
+      `*A quantia de:* R$ ${customerData.cpf} (Valor simulado no campo CPF)\n` +
+      `*Referente a:* Aluguel de Moto\n` +
+      `*Data:* ${new Date().toLocaleDateString('pt-BR')}`;
+    handleWhatsAppRedirect(message);
+    setCurrentView('home');
+  };
+
+  return (
+    <div className="min-h-screen bg-brand-black text-white font-sans selection:bg-brand-red selection:text-white">
+      {/* Background Pattern */}
+      <div className="fixed inset-0 bg-racing-flags pointer-events-none z-0" />
+
+      <div className="relative z-10 max-w-md mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="text-center mb-8">
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="inline-block p-4 bg-white rounded-full shadow-2xl mb-4 border-4 border-brand-red"
+          >
+            <Bike className="w-16 h-16 text-brand-red" />
+          </motion.div>
+          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">
+            Juan <span className="text-brand-red">Motos</span>
+          </h1>
+          <p className="text-xs text-brand-silver font-bold tracking-widest uppercase mt-1">
+            Aluguel de Motos
+          </p>
+        </header>
+
+        <main>
+          <AnimatePresence mode="wait">
+            {currentView === 'home' && (
+              <motion.div 
+                key="home"
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 20, opacity: 0 }}
+                className="space-y-4"
+              >
+                <MenuButton 
+                  icon={<UserPlus />} 
+                  label="Cadastro de Cliente" 
+                  description="Completo com Foto e RG"
+                  onClick={() => setCurrentView('register')}
+                  color="bg-white text-brand-black"
+                />
+
+                <div className="grid grid-cols-1 gap-4">
+                  <RentalButton 
+                    model="biz-old" 
+                    onClick={() => { setSelectedMoto('biz-old'); setCurrentView('rent'); }} 
+                  />
+                  <RentalButton 
+                    model="biz-new" 
+                    onClick={() => { setSelectedMoto('biz-new'); setCurrentView('rent'); }} 
+                  />
+                  <RentalButton 
+                    model="pop-new" 
+                    onClick={() => { setSelectedMoto('pop-new'); setCurrentView('rent'); }} 
+                  />
+                  <RentalButton 
+                    model="fan-2020" 
+                    onClick={() => { setSelectedMoto('fan-2020'); setCurrentView('rent'); }} 
+                  />
+                </div>
+
+                <MenuButton 
+                  icon={<Receipt />} 
+                  label="Gerar Recibo" 
+                  description="Recibo de pagamento oficial"
+                  onClick={() => setCurrentView('receipt')}
+                  color="bg-brand-silver text-brand-black"
+                />
+
+                <div className="mt-8 p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
+                  <div className="flex items-start gap-3 text-sm text-brand-silver">
+                    <MapPin className="w-5 h-5 text-brand-red shrink-0" />
+                    <p>{ADDRESS}</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-brand-silver mt-3">
+                    <Phone className="w-5 h-5 text-brand-red shrink-0" />
+                    <p>(92) 99519-7573</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {currentView === 'register' && (
+              <motion.div 
+                key="register"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -20, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar
+                </button>
+                <h2 className="text-2xl font-black uppercase italic mb-6">Cadastro de Cliente</h2>
+                
+                <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  <Input label="Nome Completo" placeholder="Ex: João Silva" onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="RG" placeholder="000.000.000" onChange={e => setCustomerData({...customerData, rg: e.target.value})} required />
+                    <Input label="CPF" placeholder="000.000.000-00" onChange={e => setCustomerData({...customerData, cpf: e.target.value})} required />
+                  </div>
+                  <Input label="Telefone" placeholder="(92) 99999-9999" onChange={e => setCustomerData({...customerData, phone: e.target.value})} required />
+                  <Input label="Endereço" placeholder="Rua, Número, Bairro" onChange={e => setCustomerData({...customerData, address: e.target.value})} required />
+                  
+                  <div className="grid grid-cols-2 gap-4 py-2">
+                    <PhotoButton label="Foto do Cliente" active={!!customerData.photo} onClick={() => capturePhoto('photo')} />
+                    <PhotoButton label="Foto do RG" active={!!customerData.rgPhoto} onClick={() => capturePhoto('rgPhoto')} />
+                  </div>
+
+                  <div className="p-4 bg-brand-silver/50 rounded-xl border border-brand-black/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-brand-red">
+                        <ShieldCheck size={18} />
+                        <span className="text-xs font-bold uppercase">Contrato de Locação</span>
+                      </div>
+                      <button type="button" onClick={() => setCurrentView('contract')} className="text-[10px] font-bold text-brand-red underline">Ver Completo</button>
+                    </div>
+                    <p className="text-[10px] leading-tight text-brand-black/70">
+                      Ao prosseguir, você concorda com os termos de uso e responsabilidade sobre o veículo locado, comprometendo-se a devolver o mesmo nas condições originais até as 18h do dia corrente.
+                    </p>
+                    <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                      <input type="checkbox" checked={isContractAccepted} onChange={e => setIsContractAccepted(e.target.checked)} className="accent-brand-red" />
+                      <span className="text-xs font-bold">Aceito os termos do contrato</span>
+                    </label>
+                  </div>
+
+                  <SubmitButton label="Finalizar Cadastro" icon={<Send size={18} />} />
+                </form>
+              </motion.div>
+            )}
+
+            {currentView === 'contract' && (
+              <motion.div 
+                key="contract"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('register')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar ao Cadastro
+                </button>
+                <h2 className="text-xl font-black uppercase italic mb-4">Contrato de Locação</h2>
+                <div className="bg-brand-silver/30 p-4 rounded-xl text-[10px] font-mono leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {CONTRACT_TEXT}
+                </div>
+                <button 
+                  onClick={() => { setIsContractAccepted(true); setCurrentView('register'); }}
+                  className="w-full bg-brand-red text-white p-4 rounded-2xl font-black uppercase italic mt-6 shadow-xl"
+                >
+                  Aceitar e Voltar
+                </button>
+              </motion.div>
+            )}
+
+            {currentView === 'rent' && (
+              <motion.div 
+                key="rent"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar
+                </button>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-brand-red text-white rounded-2xl">
+                    <Bike size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black uppercase italic leading-none">Alugar Moto</h2>
+                    <p className="text-xs font-bold text-brand-red mt-1">{selectedMoto && MOTO_NAMES[selectedMoto]}</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleRentalSubmit} className="space-y-4">
+                  <div className="p-4 bg-brand-red/5 rounded-2xl border-2 border-brand-red/20">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-bold uppercase opacity-60">Valor da Diária</span>
+                      <span className="text-2xl font-black text-brand-red">R$ {selectedMoto && MOTO_PRICES[selectedMoto]},00</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-bold text-brand-black/60">
+                      <Clock size={14} />
+                      <span>Período: Manhã até as 18:00h</span>
+                    </div>
+                  </div>
+
+                  <Input label="Nome do Cliente" placeholder="Nome completo" onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
+                  
+                  <div className="p-4 bg-brand-silver/50 rounded-xl border border-brand-black/10">
+                    <p className="text-[10px] leading-tight text-brand-black/70 italic">
+                      * O contrato de locação será vinculado automaticamente a este pedido. O locatário declara estar ciente das multas e responsabilidades civis e criminais.
+                    </p>
+                  </div>
+
+                  <SubmitButton label="Confirmar Aluguel" icon={<CheckCircle2 size={18} />} />
+                </form>
+              </motion.div>
+            )}
+
+            {currentView === 'receipt' && (
+              <motion.div 
+                key="receipt"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.1, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar
+                </button>
+                <h2 className="text-2xl font-black uppercase italic mb-6">Recibo Oficial</h2>
+                
+                <form onSubmit={handleReceiptSubmit} className="space-y-4">
+                  <Input label="Recebemos de" placeholder="Nome do cliente" onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
+                  <Input label="Valor (R$)" placeholder="Ex: 50,00" onChange={e => setCustomerData({...customerData, cpf: e.target.value})} required />
+                  <Input label="Referente a" placeholder="Ex: Aluguel de Moto Biz" required />
+                  
+                  <div className="p-8 border-2 border-dashed border-brand-silver rounded-2xl text-center">
+                    <Receipt className="w-12 h-12 text-brand-silver mx-auto mb-2" />
+                    <p className="text-xs font-bold text-brand-silver uppercase">Visualização do Recibo</p>
+                  </div>
+
+                  <SubmitButton label="Enviar Recibo via WhatsApp" icon={<Send size={18} />} />
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+
+        <footer className="mt-12 text-center text-[10px] text-brand-silver/50 uppercase tracking-[0.2em] font-bold">
+          &copy; 2026 Juan Motos - Todos os direitos reservados
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function MenuButton({ icon, label, description, onClick, color }: { icon: React.ReactNode, label: string, description: string, onClick: () => void, color: string }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-4 p-5 rounded-3xl shadow-xl text-left transition-all",
+        color
+      )}
+    >
+      <div className="p-3 bg-brand-red text-white rounded-2xl shadow-lg">
+        {icon}
+      </div>
+      <div>
+        <h3 className="font-black uppercase italic leading-none">{label}</h3>
+        <p className="text-xs font-bold opacity-60 mt-1">{description}</p>
+      </div>
+    </motion.button>
+  );
+}
+
+function RentalButton({ model, onClick }: { model: MotoModel, onClick: () => void }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className="w-full bg-brand-red text-white p-5 rounded-3xl shadow-xl text-left flex items-center justify-between group"
+    >
+      <div className="flex items-center gap-4">
+        <div className="p-3 bg-white text-brand-red rounded-2xl group-hover:rotate-12 transition-transform">
+          <Bike size={24} />
+        </div>
+        <div>
+          <h3 className="font-black uppercase italic leading-none">{MOTO_NAMES[model]}</h3>
+          <p className="text-xs font-bold opacity-80 mt-1">Manhã até as 18h</p>
+        </div>
+      </div>
+      <div className="text-right">
+        <span className="text-2xl font-black italic">R$ {MOTO_PRICES[model]}</span>
+      </div>
+    </motion.button>
+  );
+}
+
+function Input({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-black uppercase text-brand-black/40 ml-1">{label}</label>
+      <input 
+        {...props} 
+        className="w-full bg-brand-silver/30 border-2 border-transparent focus:border-brand-red focus:bg-white p-3 rounded-xl outline-none transition-all font-bold text-sm"
+      />
+    </div>
+  );
+}
+
+function PhotoButton({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) {
+  return (
+    <button 
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed transition-all",
+        active ? "bg-green-50 border-green-500 text-green-600" : "bg-brand-silver/30 border-brand-silver text-brand-black/40"
+      )}
+    >
+      {active ? <CheckCircle2 size={24} /> : <Camera size={24} />}
+      <span className="text-[10px] font-black uppercase">{label}</span>
+    </button>
+  );
+}
+
+function SubmitButton({ label, icon }: { label: string, icon: React.ReactNode }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      type="submit"
+      className="w-full bg-brand-black text-white p-4 rounded-2xl font-black uppercase italic flex items-center justify-center gap-2 shadow-xl mt-4"
+    >
+      {label} {icon}
+    </motion.button>
+  );
+}
