@@ -306,6 +306,13 @@ export default function App() {
                         </div>
                         <div className="flex items-center gap-2">
                           <button 
+                            onClick={() => generateContractPDF(customer)}
+                            className="p-2 bg-brand-silver text-brand-black/60 rounded-lg hover:bg-brand-red hover:text-white transition-all"
+                            title="Gerar Contrato PDF"
+                          >
+                            <FileText size={16} />
+                          </button>
+                          <button 
                             onClick={() => selectCustomerForRental(customer)}
                             className="p-2 bg-brand-red text-white rounded-lg shadow-md hover:scale-110 transition-transform"
                             title="Alugar para este cliente"
