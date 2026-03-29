@@ -6,7 +6,7 @@ const SHOP_NAME = 'JUAN MOTOS - ALUGUEL DE MOTOS';
 const SHOP_ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
 const SHOP_PHONE = '(92) 99519-7573';
 
-export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoModel) => {
+export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number) => {
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('pt-BR');
 
@@ -51,12 +51,13 @@ export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoMode
   // Rental Info
   if (moto) {
     const finalY = (doc as any).lastAutoTable.finalY || 75;
+    const price = customPrice !== undefined ? customPrice : MOTO_PRICES[moto];
     doc.text('DADOS DA LOCAÇÃO:', 20, finalY + 10);
     autoTable(doc, {
       startY: finalY + 15,
       body: [
         ['Veículo:', MOTO_NAMES[moto]],
-        ['Valor da Diária:', `R$ ${MOTO_PRICES[moto]},00`],
+        ['Valor da Diária:', `R$ ${price},00`],
         ['Período:', 'Manhã até as 18:00h'],
         ['Data:', dateStr],
       ],

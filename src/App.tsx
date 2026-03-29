@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   Users,
   Trash2,
-  Search
+  Search,
+  Settings,
+  DollarSign
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES } from './types';
@@ -26,7 +28,7 @@ const WHATSAPP_NUMBER = '5592995197573';
 const ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
 const LOGO_URL = 'https://raw.githubusercontent.com/stackblitz/stackblitz-images/main/juan-motos-logo.png'; // Placeholder, user should replace with actual logo
 
-type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract' | 'customers_list';
+type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract' | 'customers_list' | 'settings';
 
 const CONTRACT_TEXT = `
 CONTRATO DE LOCAÇÃO DE VEÍCULO - JUAN MOTOS
@@ -46,8 +48,10 @@ export default function App() {
   const [isContractAccepted, setIsContractAccepted] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [motoPrices, setMotoPrices] = useState<Record<MotoModel, number>>(MOTO_PRICES);
+  const [customRentalPrice, setCustomRentalPrice] = useState<number>(0);
 
-  // Load customers from localStorage on mount
+  // Load data from localStorage on mount
   useEffect(() => {
     const savedCustomers = localStorage.getItem('juan_motos_customers');
     if (savedCustomers) {
@@ -57,12 +61,26 @@ export default function App() {
         console.error("Error loading customers", e);
       }
     }
+
+    const savedPrices = localStorage.getItem('juan_motos_prices');
+    if (savedPrices) {
+      try {
+        setMotoPrices(JSON.parse(savedPrices));
+      } catch (e) {
+        console.error("Error loading prices", e);
+      }
+    }
   }, []);
 
   // Save customers to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('juan_motos_customers', JSON.stringify(customers));
   }, [customers]);
+
+  // Save prices to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('juan_motos_prices', JSON.stringify(motoPrices));
+  }, [motoPrices]);
 
   const handleWhatsAppRedirect = (message: string) => {
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
@@ -129,16 +147,24 @@ export default function App() {
     setCurrentView('rent');
   };
 
+  const startRental = (model: MotoModel) => {
+    setSelectedMoto(model);
+    setCustomRentalPrice(motoPrices[model]);
+    setCurrentView('rent');
+  };
+
   const handleRentalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMoto) return;
 
-    // Generate PDF
-    generateContractPDF(customerData, selectedMoto);
+    // Generate PDF with custom price
+    const tempPrices = { ...MOTO_PRICES, [selectedMoto]: customRentalPrice };
+    // Generate PDF Contract for the rental
+    generateContractPDF(customerData, selectedMoto, customRentalPrice);
 
     const message = `*ALUGUEL DE MOTO - JUAN MOTOS*\n\n` +
       `*Moto:* ${MOTO_NAMES[selectedMoto]}\n` +
-      `*Valor:* R$ ${MOTO_PRICES[selectedMoto]},00\n` +
+      `*Valor:* R$ ${customRentalPrice},00\n` +
       `*Período:* Manhã até as 18h\n` +
       `*Cliente:* ${customerData.name || 'Não informado'}\n\n` +
       `_Contrato de locação PDF gerado e vinculado._`;
@@ -216,29 +242,42 @@ export default function App() {
                 <div className="grid grid-cols-1 gap-4">
                   <RentalButton 
                     model="biz-old" 
-                    onClick={() => { setSelectedMoto('biz-old'); setCurrentView('rent'); }} 
+                    price={motoPrices['biz-old']}
+                    onClick={() => startRental('biz-old')} 
                   />
                   <RentalButton 
                     model="biz-new" 
-                    onClick={() => { setSelectedMoto('biz-new'); setCurrentView('rent'); }} 
+                    price={motoPrices['biz-new']}
+                    onClick={() => startRental('biz-new')} 
                   />
                   <RentalButton 
                     model="pop-new" 
-                    onClick={() => { setSelectedMoto('pop-new'); setCurrentView('rent'); }} 
+                    price={motoPrices['pop-new']}
+                    onClick={() => startRental('pop-new')} 
                   />
                   <RentalButton 
                     model="fan-2020" 
-                    onClick={() => { setSelectedMoto('fan-2020'); setCurrentView('rent'); }} 
+                    price={motoPrices['fan-2020']}
+                    onClick={() => startRental('fan-2020')} 
                   />
                 </div>
 
-                <MenuButton 
-                  icon={<Receipt />} 
-                  label="Gerar Recibo" 
-                  description="Recibo de pagamento oficial"
-                  onClick={() => setCurrentView('receipt')}
-                  color="bg-brand-silver text-brand-black"
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <MenuButton 
+                    icon={<Receipt />} 
+                    label="Recibo" 
+                    description="Oficial"
+                    onClick={() => setCurrentView('receipt')}
+                    color="bg-brand-silver text-brand-black"
+                  />
+                  <MenuButton 
+                    icon={<Settings />} 
+                    label="Preços" 
+                    description="Ajustar valores"
+                    onClick={() => setCurrentView('settings')}
+                    color="bg-brand-silver text-brand-black"
+                  />
+                </div>
 
                 <div className="mt-8 p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
                   <div className="flex items-start gap-3 text-sm text-brand-silver">
@@ -250,6 +289,48 @@ export default function App() {
                     <p>(92) 99519-7573</p>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {currentView === 'settings' && (
+              <motion.div 
+                key="settings"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.1, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar
+                </button>
+                <h2 className="text-2xl font-black uppercase italic mb-6">Ajustar Preços</h2>
+                
+                <div className="space-y-4">
+                  {(Object.keys(motoPrices) as MotoModel[]).map((model) => (
+                    <div key={model} className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-brand-black/40 ml-1">{MOTO_NAMES[model]}</label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-red" size={18} />
+                        <input 
+                          type="number" 
+                          value={motoPrices[model]}
+                          onChange={e => setMotoPrices({...motoPrices, [model]: Number(e.target.value)})}
+                          className="w-full pl-10 pr-4 py-3 bg-brand-silver/30 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-brand-red/20"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={() => {
+                    confetti({ particleCount: 50, spread: 40 });
+                    setCurrentView('home');
+                  }}
+                  className="w-full bg-brand-black text-white p-4 rounded-2xl font-black uppercase italic flex items-center justify-center gap-2 shadow-xl mt-8"
+                >
+                  Salvar Novos Preços <CheckCircle2 size={18} />
+                </button>
               </motion.div>
             )}
 
@@ -437,7 +518,15 @@ export default function App() {
                   <div className="p-4 bg-brand-red/5 rounded-2xl border-2 border-brand-red/20">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-bold uppercase opacity-60">Valor da Diária</span>
-                      <span className="text-2xl font-black text-brand-red">R$ {selectedMoto && MOTO_PRICES[selectedMoto]},00</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-bold text-brand-red">R$</span>
+                        <input 
+                          type="number" 
+                          value={customRentalPrice}
+                          onChange={e => setCustomRentalPrice(Number(e.target.value))}
+                          className="w-20 bg-transparent border-b-2 border-brand-red text-2xl font-black text-brand-red outline-none text-right"
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs font-bold text-brand-black/60">
                       <Clock size={14} />
@@ -524,7 +613,7 @@ function MenuButton({ icon, label, description, onClick, color }: { icon: React.
   );
 }
 
-function RentalButton({ model, onClick }: { model: MotoModel, onClick: () => void }) {
+function RentalButton({ model, price, onClick }: { model: MotoModel, price: number, onClick: () => void }) {
   return (
     <motion.button
       whileHover={{ scale: 1.02 }}
@@ -542,7 +631,7 @@ function RentalButton({ model, onClick }: { model: MotoModel, onClick: () => voi
         </div>
       </div>
       <div className="text-right">
-        <span className="text-2xl font-black italic">R$ {MOTO_PRICES[model]}</span>
+        <span className="text-2xl font-black italic">R$ {price}</span>
       </div>
     </motion.button>
   );
