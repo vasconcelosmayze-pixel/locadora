@@ -20,7 +20,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { cn } from './lib/utils';
-import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES } from './types';
+import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES, RentalPeriod, RENTAL_PERIOD_LABELS } from './types';
 import confetti from 'canvas-confetti';
 import { generateContractPDF, generateReceiptPDF } from './lib/pdf';
 
@@ -30,11 +30,11 @@ const LOGO_URL = 'https://raw.githubusercontent.com/stackblitz/stackblitz-images
 
 type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract' | 'customers_list' | 'settings';
 
-const CONTRACT_TEXT = `
+  const getContractText = (period: RentalPeriod = '18h') => `
 CONTRATO DE LOCAÇÃO DE VEÍCULO - JUAN MOTOS
 
 1. OBJETO: O presente contrato tem por objeto a locação de veículo automotor (motocicleta) de propriedade da LOCADORA JUAN MOTOS.
-2. PRAZO: A locação é diária, iniciando-se na parte da manhã e encerrando-se impreterivelmente às 18:00h do mesmo dia.
+2. PRAZO: A locação é ${period === '18h' ? 'diária, iniciando-se na parte da manhã e encerrando-se impreterivelmente às 18:00h do mesmo dia' : 'de 24 horas, devendo ser devolvida no mesmo horário do dia seguinte'}.
 3. VALORES: Os valores variam conforme o modelo da moto (Biz Antiga: R$35, Biz Nova: R$40, Pop Nova: R$50, Fan 2020: R$80).
 4. RESPONSABILIDADE: O LOCATÁRIO é inteiramente responsável por quaisquer danos causados ao veículo, a terceiros ou infrações de trânsito cometidas durante o período de locação.
 5. DEVOLUÇÃO: O veículo deve ser devolvido com a mesma quantidade de combustível e nas mesmas condições de conservação em que foi entregue.
@@ -50,6 +50,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [motoPrices, setMotoPrices] = useState<Record<MotoModel, number>>(MOTO_PRICES);
   const [customRentalPrice, setCustomRentalPrice] = useState<number>(0);
+  const [rentalPeriod, setRentalPeriod] = useState<RentalPeriod>('18h');
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -175,12 +176,12 @@ export default function App() {
     // Generate PDF with custom price
     const tempPrices = { ...MOTO_PRICES, [selectedMoto]: customRentalPrice };
     // Generate PDF Contract for the rental
-    generateContractPDF(customerData, selectedMoto, customRentalPrice);
+    generateContractPDF(customerData, selectedMoto, customRentalPrice, rentalPeriod);
 
     const message = `*ALUGUEL DE MOTO - JUAN MOTOS*\n\n` +
       `*Moto:* ${MOTO_NAMES[selectedMoto]}\n` +
       `*Valor:* R$ ${customRentalPrice},00\n` +
-      `*Período:* Manhã até as 18h\n` +
+      `*Período:* ${RENTAL_PERIOD_LABELS[rentalPeriod]}\n` +
       `*Cliente:* ${customerData.name || 'Não informado'}\n\n` +
       `_Contrato de locação PDF gerado e vinculado._`;
     handleWhatsAppRedirect(message);
@@ -254,25 +255,52 @@ export default function App() {
                   color="bg-brand-silver text-brand-black"
                 />
 
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/10 mb-2 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-[10px] font-black text-brand-silver mb-3 uppercase tracking-widest">
+                    <Clock size={12} className="text-brand-red" />
+                    <span>Selecione o Período de Aluguel:</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['18h', '24h'] as RentalPeriod[]).map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setRentalPeriod(p)}
+                        className={cn(
+                          "py-2 px-3 rounded-xl font-black uppercase italic text-[10px] transition-all border-2",
+                          rentalPeriod === p 
+                            ? "bg-brand-red text-white border-brand-red shadow-lg scale-105" 
+                            : "bg-white/5 text-brand-silver border-transparent hover:bg-white/10"
+                        )}
+                      >
+                        {RENTAL_PERIOD_LABELS[p]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4">
                   <RentalButton 
                     model="biz-old" 
                     price={motoPrices['biz-old']}
+                    period={rentalPeriod}
                     onClick={() => startRental('biz-old')} 
                   />
                   <RentalButton 
                     model="biz-new" 
                     price={motoPrices['biz-new']}
+                    period={rentalPeriod}
                     onClick={() => startRental('biz-new')} 
                   />
                   <RentalButton 
                     model="pop-new" 
                     price={motoPrices['pop-new']}
+                    period={rentalPeriod}
                     onClick={() => startRental('pop-new')} 
                   />
                   <RentalButton 
                     model="fan-2020" 
                     price={motoPrices['fan-2020']}
+                    period={rentalPeriod}
                     onClick={() => startRental('fan-2020')} 
                   />
                 </div>
@@ -509,7 +537,7 @@ export default function App() {
                 </button>
                 <h2 className="text-xl font-black uppercase italic mb-4">Contrato de Locação</h2>
                 <div className="bg-brand-silver/30 p-4 rounded-xl text-[10px] font-mono leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {CONTRACT_TEXT}
+                  {getContractText(rentalPeriod)}
                 </div>
                 <button 
                   onClick={() => { setIsContractAccepted(true); setCurrentView('register'); }}
@@ -561,9 +589,27 @@ export default function App() {
                         />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs font-bold text-brand-black/60">
+                    <div className="flex items-center gap-2 text-xs font-bold text-brand-black/60 mb-4">
                       <Clock size={14} />
-                      <span>Período: Manhã até as 18:00h</span>
+                      <span>Selecione o Período:</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      {(['18h', '24h'] as RentalPeriod[]).map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setRentalPeriod(p)}
+                          className={cn(
+                            "py-3 px-4 rounded-xl font-black uppercase italic text-[10px] transition-all border-2",
+                            rentalPeriod === p 
+                              ? "bg-brand-red text-white border-brand-red shadow-lg" 
+                              : "bg-brand-silver/20 text-brand-black/40 border-transparent"
+                          )}
+                        >
+                          {RENTAL_PERIOD_LABELS[p]}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -646,7 +692,7 @@ function MenuButton({ icon, label, description, onClick, color }: { icon: React.
   );
 }
 
-function RentalButton({ model, price, onClick }: { model: MotoModel, price: number, onClick: () => void }) {
+function RentalButton({ model, price, period, onClick }: { model: MotoModel, price: number, period: RentalPeriod, onClick: () => void }) {
   return (
     <motion.button
       whileHover={{ scale: 1.02 }}
@@ -660,7 +706,7 @@ function RentalButton({ model, price, onClick }: { model: MotoModel, price: numb
         </div>
         <div>
           <h3 className="font-black uppercase italic leading-none">{MOTO_NAMES[model]}</h3>
-          <p className="text-xs font-bold opacity-80 mt-1">Manhã até as 18h</p>
+          <p className="text-xs font-bold opacity-80 mt-1">{RENTAL_PERIOD_LABELS[period]}</p>
         </div>
       </div>
       <div className="text-right">

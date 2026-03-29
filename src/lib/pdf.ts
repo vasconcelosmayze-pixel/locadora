@@ -1,12 +1,12 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Customer, MotoModel, MOTO_NAMES, MOTO_PRICES } from '../types';
+import { Customer, MotoModel, MOTO_NAMES, MOTO_PRICES, RentalPeriod, RENTAL_PERIOD_LABELS } from '../types';
 
 const SHOP_NAME = 'JUAN MOTOS - ALUGUEL DE MOTOS';
 const SHOP_ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
 const SHOP_PHONE = '(92) 99519-7573';
 
-export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number) => {
+export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number, period: RentalPeriod = '18h') => {
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('pt-BR');
 
@@ -58,7 +58,7 @@ export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoMode
       body: [
         ['Veículo:', MOTO_NAMES[moto]],
         ['Valor da Diária:', `R$ ${price},00`],
-        ['Período:', 'Manhã até as 18:00h'],
+        ['Período:', RENTAL_PERIOD_LABELS[period]],
         ['Data:', dateStr],
       ],
       theme: 'grid',
@@ -77,7 +77,7 @@ export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoMode
   doc.setFont('helvetica', 'normal');
   const terms = [
     '1. O LOCATÁRIO é inteiramente responsável por danos ao veículo e infrações de trânsito.',
-    '2. O veículo deve ser devolvido impreterivelmente até as 18:00h do dia corrente.',
+    `2. O veículo deve ser devolvido ${period === '18h' ? 'impreterivelmente até as 18:00h do dia corrente' : 'após 24 horas da locação, no mesmo horário da retirada'}.`,
     '3. O veículo deve ser devolvido com a mesma quantidade de combustível.',
     '4. Em caso de furto ou roubo, o LOCATÁRIO deverá ressarcir o valor integral do veículo.',
     '5. É proibido o uso do veículo por terceiros não autorizados neste contrato.'

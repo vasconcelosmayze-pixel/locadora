@@ -19,6 +19,12 @@ export interface Rental {
 }
 
 export type MotoModel = 'biz-old' | 'biz-new' | 'pop-new' | 'fan-2020';
+export type RentalPeriod = '18h' | '24h';
+
+export const RENTAL_PERIOD_LABELS: Record<RentalPeriod, string> = {
+  '18h': 'Manhã até as 18h',
+  '24h': '24 Horas',
+};
 
 export const MOTO_PRICES: Record<MotoModel, number> = {
   'biz-old': 35,
