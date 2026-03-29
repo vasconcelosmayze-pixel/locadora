@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   UserPlus, 
@@ -12,17 +12,21 @@ import {
   Clock,
   CheckCircle2,
   Receipt,
-  ShieldCheck
+  ShieldCheck,
+  Users,
+  Trash2,
+  Search
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES } from './types';
 import confetti from 'canvas-confetti';
+import { generateContractPDF, generateReceiptPDF } from './lib/pdf';
 
 const WHATSAPP_NUMBER = '5592995197573';
 const ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
 const LOGO_URL = 'https://raw.githubusercontent.com/stackblitz/stackblitz-images/main/juan-motos-logo.png'; // Placeholder, user should replace with actual logo
 
-type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract';
+type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract' | 'customers_list';
 
 const CONTRACT_TEXT = `
 CONTRATO DE LOCAÇÃO DE VEÍCULO - JUAN MOTOS
@@ -40,6 +44,25 @@ export default function App() {
   const [selectedMoto, setSelectedMoto] = useState<MotoModel | null>(null);
   const [customerData, setCustomerData] = useState<Partial<Customer>>({});
   const [isContractAccepted, setIsContractAccepted] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Load customers from localStorage on mount
+  useEffect(() => {
+    const savedCustomers = localStorage.getItem('juan_motos_customers');
+    if (savedCustomers) {
+      try {
+        setCustomers(JSON.parse(savedCustomers));
+      } catch (e) {
+        console.error("Error loading customers", e);
+      }
+    }
+  }, []);
+
+  // Save customers to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('juan_motos_customers', JSON.stringify(customers));
+  }, [customers]);
 
   const handleWhatsAppRedirect = (message: string) => {
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
@@ -64,37 +87,79 @@ export default function App() {
       alert('Você precisa aceitar o contrato para continuar.');
       return;
     }
+
+    const newCustomer: Customer = {
+      name: customerData.name || '',
+      rg: customerData.rg || '',
+      cpf: customerData.cpf || '',
+      phone: customerData.phone || '',
+      address: customerData.address || '',
+      photo: customerData.photo,
+      rgPhoto: customerData.rgPhoto,
+    };
+
+    // Save to local list
+    setCustomers(prev => [...prev, newCustomer]);
+
+    // Generate PDF
+    generateContractPDF(newCustomer);
+
     const message = `*NOVO CADASTRO - JUAN MOTOS*\n\n` +
-      `*Nome:* ${customerData.name}\n` +
-      `*RG:* ${customerData.rg}\n` +
-      `*CPF:* ${customerData.cpf}\n` +
-      `*Telefone:* ${customerData.phone}\n` +
-      `*Endereço:* ${customerData.address}\n\n` +
-      `_Contrato aceito e vinculado._`;
+      `*Nome:* ${newCustomer.name}\n` +
+      `*RG:* ${newCustomer.rg}\n` +
+      `*CPF:* ${newCustomer.cpf}\n` +
+      `*Telefone:* ${newCustomer.phone}\n` +
+      `*Endereço:* ${newCustomer.address}\n\n` +
+      `_Contrato aceito e PDF gerado._`;
+    
     handleWhatsAppRedirect(message);
     setCurrentView('home');
+    setCustomerData({});
+    setIsContractAccepted(false);
+  };
+
+  const deleteCustomer = (cpf: string) => {
+    if (confirm('Tem certeza que deseja excluir este cliente?')) {
+      setCustomers(prev => prev.filter(c => c.cpf !== cpf));
+    }
+  };
+
+  const selectCustomerForRental = (customer: Customer) => {
+    setCustomerData(customer);
+    setCurrentView('rent');
   };
 
   const handleRentalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMoto) return;
+
+    // Generate PDF
+    generateContractPDF(customerData, selectedMoto);
+
     const message = `*ALUGUEL DE MOTO - JUAN MOTOS*\n\n` +
       `*Moto:* ${MOTO_NAMES[selectedMoto]}\n` +
       `*Valor:* R$ ${MOTO_PRICES[selectedMoto]},00\n` +
       `*Período:* Manhã até as 18h\n` +
       `*Cliente:* ${customerData.name || 'Não informado'}\n\n` +
-      `_Contrato de locação vinculado._`;
+      `_Contrato de locação PDF gerado e vinculado._`;
     handleWhatsAppRedirect(message);
     setCurrentView('home');
   };
 
   const handleReceiptSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const value = customerData.cpf || '0,00';
+    const desc = customerData.address || 'Aluguel de Moto';
+
+    // Generate PDF
+    generateReceiptPDF(customerData.name || 'Cliente', value, desc);
+
     const message = `*RECIBO - JUAN MOTOS*\n\n` +
       `*Recebemos de:* ${customerData.name}\n` +
-      `*A quantia de:* R$ ${customerData.cpf} (Valor simulado no campo CPF)\n` +
-      `*Referente a:* Aluguel de Moto\n` +
-      `*Data:* ${new Date().toLocaleDateString('pt-BR')}`;
+      `*A quantia de:* R$ ${value}\n` +
+      `*Referente a:* ${desc}\n` +
+      `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n\n` +
+      `_Recibo PDF gerado._`;
     handleWhatsAppRedirect(message);
     setCurrentView('home');
   };
@@ -136,8 +201,16 @@ export default function App() {
                   icon={<UserPlus />} 
                   label="Cadastro de Cliente" 
                   description="Completo com Foto e RG"
-                  onClick={() => setCurrentView('register')}
+                  onClick={() => { setCustomerData({}); setCurrentView('register'); }}
                   color="bg-white text-brand-black"
+                />
+
+                <MenuButton 
+                  icon={<Users />} 
+                  label="Clientes Cadastrados" 
+                  description="Ver banco de dados local"
+                  onClick={() => setCurrentView('customers_list')}
+                  color="bg-brand-silver text-brand-black"
                 />
 
                 <div className="grid grid-cols-1 gap-4">
@@ -176,6 +249,79 @@ export default function App() {
                     <Phone className="w-5 h-5 text-brand-red shrink-0" />
                     <p>(92) 99519-7573</p>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {currentView === 'customers_list' && (
+              <motion.div 
+                key="customers_list"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -20, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar
+                </button>
+                <h2 className="text-2xl font-black uppercase italic mb-6">Banco de Dados</h2>
+                
+                <div className="relative mb-6">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-black/30" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar por nome ou CPF..." 
+                    className="w-full pl-10 pr-4 py-3 bg-brand-silver/30 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-brand-red/20"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  {customers.filter(c => 
+                    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    c.cpf.includes(searchTerm)
+                  ).length === 0 ? (
+                    <div className="text-center py-8 text-brand-black/40 font-bold uppercase text-xs italic">
+                      Nenhum cliente encontrado
+                    </div>
+                  ) : (
+                    customers.filter(c => 
+                      c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                      c.cpf.includes(searchTerm)
+                    ).map((customer, idx) => (
+                      <div key={idx} className="p-4 bg-brand-silver/20 rounded-2xl border border-brand-silver/50 flex items-center justify-between group">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-brand-red/10 flex items-center justify-center text-brand-red overflow-hidden">
+                            {customer.photo ? (
+                              <img src={customer.photo} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <UserPlus size={20} />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-black text-sm uppercase italic leading-none">{customer.name}</h4>
+                            <p className="text-[10px] font-bold text-brand-black/50 mt-1">CPF: {customer.cpf}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => selectCustomerForRental(customer)}
+                            className="p-2 bg-brand-red text-white rounded-lg shadow-md hover:scale-110 transition-transform"
+                            title="Alugar para este cliente"
+                          >
+                            <Bike size={16} />
+                          </button>
+                          <button 
+                            onClick={() => deleteCustomer(customer.cpf)}
+                            className="p-2 bg-brand-silver text-brand-black/40 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </motion.div>
             )}
@@ -268,9 +414,15 @@ export default function App() {
                   <div className="p-3 bg-brand-red text-white rounded-2xl">
                     <Bike size={24} />
                   </div>
-                  <div>
+                  <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-black uppercase italic leading-none">Alugar Moto</h2>
-                    <p className="text-xs font-bold text-brand-red mt-1">{selectedMoto && MOTO_NAMES[selectedMoto]}</p>
+                    <button 
+                      type="button"
+                      onClick={() => setCurrentView('customers_list')}
+                      className="text-[10px] font-bold text-brand-red underline uppercase"
+                    >
+                      Selecionar Cliente Salvo
+                    </button>
                   </div>
                 </div>
 
@@ -286,7 +438,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  <Input label="Nome do Cliente" placeholder="Nome completo" onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
+                  <Input 
+                    label="Nome do Cliente" 
+                    placeholder="Nome completo" 
+                    value={customerData.name || ''}
+                    onChange={e => setCustomerData({...customerData, name: e.target.value})} 
+                    required 
+                  />
                   
                   <div className="p-4 bg-brand-silver/50 rounded-xl border border-brand-black/10">
                     <p className="text-[10px] leading-tight text-brand-black/70 italic">
@@ -313,16 +471,16 @@ export default function App() {
                 <h2 className="text-2xl font-black uppercase italic mb-6">Recibo Oficial</h2>
                 
                 <form onSubmit={handleReceiptSubmit} className="space-y-4">
-                  <Input label="Recebemos de" placeholder="Nome do cliente" onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
-                  <Input label="Valor (R$)" placeholder="Ex: 50,00" onChange={e => setCustomerData({...customerData, cpf: e.target.value})} required />
-                  <Input label="Referente a" placeholder="Ex: Aluguel de Moto Biz" required />
+                  <Input label="Recebemos de" placeholder="Nome do cliente" value={customerData.name || ''} onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
+                  <Input label="Valor (R$)" placeholder="Ex: 50,00" value={customerData.cpf || ''} onChange={e => setCustomerData({...customerData, cpf: e.target.value})} required />
+                  <Input label="Referente a" placeholder="Ex: Aluguel de Moto Biz" value={customerData.address || ''} onChange={e => setCustomerData({...customerData, address: e.target.value})} required />
                   
                   <div className="p-8 border-2 border-dashed border-brand-silver rounded-2xl text-center">
                     <Receipt className="w-12 h-12 text-brand-silver mx-auto mb-2" />
                     <p className="text-xs font-bold text-brand-silver uppercase">Visualização do Recibo</p>
                   </div>
 
-                  <SubmitButton label="Enviar Recibo via WhatsApp" icon={<Send size={18} />} />
+                  <SubmitButton label="Gerar PDF e Enviar WhatsApp" icon={<Send size={18} />} />
                 </form>
               </motion.div>
             )}
