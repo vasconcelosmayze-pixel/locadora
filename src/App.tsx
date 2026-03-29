@@ -154,6 +154,7 @@ export default function App() {
       photo: customerData.photo,
       rgPhoto: customerData.rgPhoto,
       obs: customerData.obs || '',
+      createdAt: new Date().toLocaleString('pt-BR'),
     };
 
     // Save to local list
@@ -167,7 +168,8 @@ export default function App() {
       `*RG:* ${newCustomer.rg}\n` +
       `*CPF:* ${newCustomer.cpf}\n` +
       `*Telefone:* ${newCustomer.phone}\n` +
-      `*Endereço:* ${newCustomer.address}\n\n` +
+      `*Endereço:* ${newCustomer.address}\n` +
+      `*Data de Cadastro:* ${newCustomer.createdAt}\n\n` +
       `_Contrato aceito e PDF gerado._`;
     
     handleWhatsAppRedirect(message);
@@ -225,6 +227,7 @@ export default function App() {
       `*Tipo:* ${rentalType === 'entry' ? 'Entrada' : 'Renovação'}\n` +
       `*Moto:* ${MOTO_NAMES[selectedMoto]}\n` +
       `*Valor:* R$ ${customRentalPrice},00\n` +
+      `*Data:* ${newRental.date} às ${newRental.startTime}\n` +
       `*Período:* ${RENTAL_PERIOD_LABELS[rentalPeriod]}\n` +
       `*Cliente:* ${customerData.name || 'Não informado'}\n\n` +
       `_Contrato de locação PDF gerado e registrado no sistema._`;
@@ -245,7 +248,7 @@ export default function App() {
       `*Recebemos de:* ${customerData.name}\n` +
       `*A quantia de:* R$ ${value}\n` +
       `*Referente a:* ${desc}\n` +
-      `*Data:* ${new Date().toLocaleDateString('pt-BR')}\n\n` +
+      `*Data:* ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n\n` +
       `_Recibo PDF gerado._`;
     handleWhatsAppRedirect(message);
     setCurrentView('home');
@@ -594,6 +597,7 @@ export default function App() {
                     <DetailItem label="RG" value={selectedCustomer.rg} />
                     <DetailItem label="Telefone" value={selectedCustomer.phone} />
                     <DetailItem label="Endereço" value={selectedCustomer.address} />
+                    <DetailItem label="Data de Cadastro" value={selectedCustomer.createdAt || 'Não registrada'} />
                     <div className="relative">
                       <DetailItem label="OBS / Reclamações" value={selectedCustomer.obs || 'Nenhuma observação registrada.'} />
                       <button 
@@ -962,7 +966,7 @@ export default function App() {
                         </div>
                         <div>
                           <h5 className="text-[11px] font-black uppercase italic leading-none">{rental.customerName}</h5>
-                          <p className="text-[9px] font-bold text-brand-black/40 mt-1">{rental.date} - {MOTO_NAMES[rental.motoModel as MotoModel]}</p>
+                          <p className="text-[9px] font-bold text-brand-black/40 mt-1">{rental.date} às {rental.startTime} - {MOTO_NAMES[rental.motoModel as MotoModel]}</p>
                         </div>
                       </div>
                       <div className="text-right">

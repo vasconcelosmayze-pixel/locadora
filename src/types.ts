@@ -7,6 +7,7 @@ export interface Customer {
   photo?: string;
   rgPhoto?: string;
   obs?: string;
+  createdAt?: string;
 }
 
 export interface Rental {
