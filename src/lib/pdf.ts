@@ -6,7 +6,7 @@ const SHOP_NAME = 'JUAN MOTOS - ALUGUEL DE MOTOS';
 const SHOP_ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
 const SHOP_PHONE = '(92) 99519-7573';
 
-export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number, period: RentalPeriod = '18h') => {
+const createContractDoc = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number, period: RentalPeriod = '18h') => {
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('pt-BR');
 
@@ -80,7 +80,8 @@ export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoMode
     `2. O veículo deve ser devolvido ${period === '18h' ? 'impreterivelmente até as 18:00h do dia corrente' : 'após 24 horas da locação, no mesmo horário da retirada'}.`,
     '3. O veículo deve ser devolvido com a mesma quantidade de combustível.',
     '4. Em caso de furto ou roubo, o LOCATÁRIO deverá ressarcir o valor integral do veículo.',
-    '5. É proibido o uso do veículo por terceiros não autorizados neste contrato.'
+    '5. É proibido o uso do veículo por terceiros não autorizados neste contrato.',
+    '6. A locadora empresta 01 (um) capacete por moto, ficando o LOCATÁRIO responsável por perca, roubo ou extravio do mesmo.'
   ];
   
   terms.forEach((term, index) => {
@@ -95,7 +96,19 @@ export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoMode
   doc.line(120, finalY3 + 20, 190, finalY3 + 20);
   doc.text('Assinatura Juan Motos', 155, finalY3 + 25, { align: 'center' });
 
+  return doc;
+};
+
+export const generateContractPDF = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number, period: RentalPeriod = '18h') => {
+  const doc = createContractDoc(customer, moto, customPrice, period);
   doc.save(`contrato_${customer.name?.replace(/\s+/g, '_') || 'cliente'}.pdf`);
+};
+
+export const printContractPDF = (customer: Partial<Customer>, moto?: MotoModel, customPrice?: number, period: RentalPeriod = '18h') => {
+  const doc = createContractDoc(customer, moto, customPrice, period);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
 };
 
 export const generateReceiptPDF = (customerName: string, value: string, description: string) => {

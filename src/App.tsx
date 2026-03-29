@@ -17,18 +17,22 @@ import {
   Trash2,
   Search,
   Settings,
-  DollarSign
+  DollarSign,
+  Eye,
+  Printer,
+  Download,
+  Edit
 } from 'lucide-react';
 import { cn } from './lib/utils';
-import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES, RentalPeriod, RENTAL_PERIOD_LABELS } from './types';
+import { Customer, MotoModel, MOTO_PRICES, MOTO_NAMES, RentalPeriod, RENTAL_PERIOD_LABELS, Rental } from './types';
 import confetti from 'canvas-confetti';
-import { generateContractPDF, generateReceiptPDF } from './lib/pdf';
+import { generateContractPDF, generateReceiptPDF, printContractPDF } from './lib/pdf';
 
 const WHATSAPP_NUMBER = '5592995197573';
 const ADDRESS = 'Avenida BH1 Nlolo Pereira Centro em frente ao comercial Bom Motivo';
 const LOGO_URL = 'https://raw.githubusercontent.com/stackblitz/stackblitz-images/main/juan-motos-logo.png'; // Placeholder, user should replace with actual logo
 
-type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract' | 'customers_list' | 'settings';
+type View = 'home' | 'register' | 'rent' | 'receipt' | 'contract' | 'customers_list' | 'settings' | 'customer_details' | 'reports';
 
   const getContractText = (period: RentalPeriod = '18h') => `
 CONTRATO DE LOCAÇÃO DE VEÍCULO - JUAN MOTOS
@@ -38,7 +42,8 @@ CONTRATO DE LOCAÇÃO DE VEÍCULO - JUAN MOTOS
 3. VALORES: Os valores variam conforme o modelo da moto (Biz Antiga: R$35, Biz Nova: R$40, Pop Nova: R$50, Fan 2020: R$80).
 4. RESPONSABILIDADE: O LOCATÁRIO é inteiramente responsável por quaisquer danos causados ao veículo, a terceiros ou infrações de trânsito cometidas durante o período de locação.
 5. DEVOLUÇÃO: O veículo deve ser devolvido com a mesma quantidade de combustível e nas mesmas condições de conservação em que foi entregue.
-6. FORO: Fica eleito o foro da comarca local para dirimir quaisquer dúvidas oriundas deste contrato.
+6. CAPACETE: A locadora empresta 01 (um) capacete por moto, ficando o LOCATÁRIO responsável por perca, roubo ou extravio do mesmo.
+7. FORO: Fica eleito o foro da comarca local para dirimir quaisquer dúvidas oriundas deste contrato.
 `;
 
 export default function App() {
@@ -51,6 +56,10 @@ export default function App() {
   const [motoPrices, setMotoPrices] = useState<Record<MotoModel, number>>(MOTO_PRICES);
   const [customRentalPrice, setCustomRentalPrice] = useState<number>(0);
   const [rentalPeriod, setRentalPeriod] = useState<RentalPeriod>('18h');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [rentals, setRentals] = useState<Rental[]>([]);
+  const [rentalType, setRentalType] = useState<'entry' | 'renewal'>('entry');
+  const [reportFilter, setReportFilter] = useState<'all' | 'entry' | 'renewal'>('all');
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -71,6 +80,15 @@ export default function App() {
         console.error("Error loading prices", e);
       }
     }
+
+    const savedRentals = localStorage.getItem('juan_motos_rentals');
+    if (savedRentals) {
+      try {
+        setRentals(JSON.parse(savedRentals));
+      } catch (e) {
+        console.error("Error loading rentals", e);
+      }
+    }
   }, []);
 
   // Save customers to localStorage whenever they change
@@ -82,6 +100,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('juan_motos_prices', JSON.stringify(motoPrices));
   }, [motoPrices]);
+
+  // Save rentals to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('juan_motos_rentals', JSON.stringify(rentals));
+  }, [rentals]);
 
   const handleWhatsAppRedirect = (message: string) => {
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
@@ -130,6 +153,7 @@ export default function App() {
       address: customerData.address || '',
       photo: customerData.photo,
       rgPhoto: customerData.rgPhoto,
+      obs: customerData.obs || '',
     };
 
     // Save to local list
@@ -163,6 +187,11 @@ export default function App() {
     setCurrentView('rent');
   };
 
+  const viewCustomerDetails = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCurrentView('customer_details');
+  };
+
   const startRental = (model: MotoModel) => {
     setSelectedMoto(model);
     setCustomRentalPrice(motoPrices[model]);
@@ -178,14 +207,30 @@ export default function App() {
     // Generate PDF Contract for the rental
     generateContractPDF(customerData, selectedMoto, customRentalPrice, rentalPeriod);
 
+    // Save rental record
+    const newRental: Rental = {
+      id: Date.now().toString(),
+      customerName: customerData.name || 'Cliente Sem Nome',
+      motoModel: selectedMoto,
+      value: customRentalPrice,
+      date: new Date().toLocaleDateString('pt-BR'),
+      startTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      endTime: rentalPeriod === '18h' ? '18:00' : new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      type: rentalType,
+      period: rentalPeriod
+    };
+    setRentals(prev => [...prev, newRental]);
+
     const message = `*ALUGUEL DE MOTO - JUAN MOTOS*\n\n` +
+      `*Tipo:* ${rentalType === 'entry' ? 'Entrada' : 'Renovação'}\n` +
       `*Moto:* ${MOTO_NAMES[selectedMoto]}\n` +
       `*Valor:* R$ ${customRentalPrice},00\n` +
       `*Período:* ${RENTAL_PERIOD_LABELS[rentalPeriod]}\n` +
       `*Cliente:* ${customerData.name || 'Não informado'}\n\n` +
-      `_Contrato de locação PDF gerado e vinculado._`;
+      `_Contrato de locação PDF gerado e registrado no sistema._`;
     handleWhatsAppRedirect(message);
     setCurrentView('home');
+    setRentalType('entry');
   };
 
   const handleReceiptSubmit = (e: React.FormEvent) => {
@@ -320,6 +365,13 @@ export default function App() {
                     onClick={() => setCurrentView('settings')}
                     color="bg-brand-silver text-brand-black"
                   />
+                  <MenuButton 
+                    icon={<FileText />} 
+                    label="Relatórios" 
+                    description="Faturamento"
+                    onClick={() => setCurrentView('reports')}
+                    color="bg-brand-red text-white"
+                  />
                 </div>
 
                 <div className="mt-8 p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
@@ -388,7 +440,28 @@ export default function App() {
                 <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
                   <ArrowLeft size={20} /> Voltar
                 </button>
-                <h2 className="text-2xl font-black uppercase italic mb-6">Banco de Dados</h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-black uppercase italic">Banco de Dados</h2>
+                  <button 
+                    onClick={() => {
+                      const filtered = customers.filter(c => 
+                        c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                        c.cpf.includes(searchTerm)
+                      );
+                      if (filtered.length === 0) return;
+                      if (confirm(`Deseja baixar ${filtered.length} contratos?`)) {
+                        filtered.forEach((c, i) => {
+                          setTimeout(() => {
+                            generateContractPDF(c, undefined, undefined, rentalPeriod);
+                          }, i * 500);
+                        });
+                      }
+                    }}
+                    className="text-[10px] font-black uppercase italic bg-brand-red text-white px-3 py-2 rounded-xl shadow-lg flex items-center gap-2"
+                  >
+                    <Download size={12} /> Baixar Todos
+                  </button>
+                </div>
                 
                 <div className="relative mb-6">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-black/30" size={18} />
@@ -424,18 +497,51 @@ export default function App() {
                             )}
                           </div>
                           <div>
-                            <h4 className="font-black text-sm uppercase italic leading-none">{customer.name}</h4>
+                            <h4 className="font-black text-sm uppercase italic leading-none flex items-center gap-2">
+                              {customer.name}
+                              {customer.obs && <span className="text-[8px] bg-brand-red text-white px-1 rounded">OBS</span>}
+                            </h4>
                             <p className="text-[10px] font-bold text-brand-black/50 mt-1">CPF: {customer.cpf}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => generateContractPDF(customer)}
-                            className="p-2 bg-brand-silver text-brand-black/60 rounded-lg hover:bg-brand-red hover:text-white transition-all"
-                            title="Gerar Contrato PDF"
-                          >
-                            <FileText size={16} />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => viewCustomerDetails(customer)}
+                              className="p-2 bg-brand-silver text-brand-black/60 rounded-lg hover:bg-brand-black hover:text-white transition-all"
+                              title="Ver Detalhes"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const newObs = prompt('Editar Observações:', customer.obs || '');
+                                if (newObs !== null) {
+                                  const updatedCustomers = customers.map(c => 
+                                    c.cpf === customer.cpf ? { ...c, obs: newObs } : c
+                                  );
+                                  setCustomers(updatedCustomers);
+                                  confetti({ particleCount: 30, spread: 20 });
+                                }
+                              }}
+                              className="p-2 bg-brand-silver text-brand-black/60 rounded-lg hover:bg-brand-black hover:text-white transition-all"
+                              title="Editar OBS"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button 
+                              onClick={() => generateContractPDF(customer, undefined, undefined, rentalPeriod)}
+                              className="p-2 bg-brand-silver text-brand-black/60 rounded-lg hover:bg-brand-red hover:text-white transition-all"
+                              title="Baixar Contrato PDF"
+                            >
+                              <Download size={16} />
+                            </button>
+                            <button 
+                              onClick={() => printContractPDF(customer, undefined, undefined, rentalPeriod)}
+                              className="p-2 bg-brand-silver text-brand-black/60 rounded-lg hover:bg-brand-black hover:text-white transition-all"
+                              title="Imprimir Contrato"
+                            >
+                              <Printer size={16} />
+                            </button>
                           <button 
                             onClick={() => selectCustomerForRental(customer)}
                             className="p-2 bg-brand-red text-white rounded-lg shadow-md hover:scale-110 transition-transform"
@@ -453,6 +559,109 @@ export default function App() {
                       </div>
                     ))
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {currentView === 'customer_details' && selectedCustomer && (
+              <motion.div 
+                key="customer_details"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.1, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('customers_list')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar à Lista
+                </button>
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-20 h-20 rounded-2xl bg-brand-red/10 flex items-center justify-center text-brand-red overflow-hidden border-2 border-brand-red/20 shadow-inner">
+                    {selectedCustomer.photo ? (
+                      <img src={selectedCustomer.photo} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserPlus size={32} />
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black uppercase italic leading-tight">{selectedCustomer.name}</h2>
+                    <p className="text-xs font-bold text-brand-red uppercase tracking-widest">Cliente Cadastrado</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4">
+                    <DetailItem label="CPF" value={selectedCustomer.cpf} />
+                    <DetailItem label="RG" value={selectedCustomer.rg} />
+                    <DetailItem label="Telefone" value={selectedCustomer.phone} />
+                    <DetailItem label="Endereço" value={selectedCustomer.address} />
+                    <div className="relative">
+                      <DetailItem label="OBS / Reclamações" value={selectedCustomer.obs || 'Nenhuma observação registrada.'} />
+                      <button 
+                        onClick={() => {
+                          const newObs = prompt('Editar Observações:', selectedCustomer.obs || '');
+                          if (newObs !== null) {
+                            const updatedCustomers = customers.map(c => 
+                              c.cpf === selectedCustomer.cpf ? { ...c, obs: newObs } : c
+                            );
+                            setCustomers(updatedCustomers);
+                            setSelectedCustomer({ ...selectedCustomer, obs: newObs });
+                            confetti({ particleCount: 30, spread: 20 });
+                          }
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-brand-red text-white rounded-lg shadow-md hover:scale-110 transition-transform"
+                        title="Editar OBS"
+                      >
+                        <Edit size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black uppercase text-brand-black/40 ml-1">Documentação Fotográfica</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-bold uppercase text-center text-brand-black/60">Foto Perfil</p>
+                        <div className="aspect-square rounded-2xl bg-brand-silver/30 overflow-hidden border border-brand-black/5">
+                          {selectedCustomer.photo ? (
+                            <img src={selectedCustomer.photo} alt="Perfil" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-brand-black/20"><Camera size={24} /></div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-bold uppercase text-center text-brand-black/60">Foto RG</p>
+                        <div className="aspect-square rounded-2xl bg-brand-silver/30 overflow-hidden border border-brand-black/5">
+                          {selectedCustomer.rgPhoto ? (
+                            <img src={selectedCustomer.rgPhoto} alt="RG" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-brand-black/20"><Camera size={24} /></div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-8">
+                  <button 
+                    onClick={() => generateContractPDF(selectedCustomer, undefined, undefined, rentalPeriod)}
+                    className="flex flex-col items-center justify-center gap-1 p-3 bg-brand-silver text-brand-black font-black uppercase italic text-[10px] rounded-2xl shadow-lg"
+                  >
+                    <Download size={18} /> Baixar
+                  </button>
+                  <button 
+                    onClick={() => printContractPDF(selectedCustomer, undefined, undefined, rentalPeriod)}
+                    className="flex flex-col items-center justify-center gap-1 p-3 bg-brand-black text-white font-black uppercase italic text-[10px] rounded-2xl shadow-lg"
+                  >
+                    <Printer size={18} /> Imprimir
+                  </button>
+                  <button 
+                    onClick={() => selectCustomerForRental(selectedCustomer)}
+                    className="flex flex-col items-center justify-center gap-1 p-3 bg-brand-red text-white font-black uppercase italic text-[10px] rounded-2xl shadow-lg"
+                  >
+                    <Bike size={18} /> Alugar
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -496,6 +705,7 @@ export default function App() {
                   </div>
                   <Input label="Telefone" placeholder="(92) 99999-9999" onChange={e => setCustomerData({...customerData, phone: e.target.value})} required />
                   <Input label="Endereço" placeholder="Rua, Número, Bairro" onChange={e => setCustomerData({...customerData, address: e.target.value})} required />
+                  <Input label="Observações (OBS)" placeholder="Reclamações ou notas importantes" onChange={e => setCustomerData({...customerData, obs: e.target.value})} />
                   
                   <div className="grid grid-cols-2 gap-4 py-2">
                     <PhotoButton label="Foto do Cliente" active={!!customerData.photo} photoUrl={customerData.photo} onClick={() => capturePhoto('photo')} />
@@ -594,7 +804,7 @@ export default function App() {
                       <span>Selecione o Período:</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-2">
+                    <div className="grid grid-cols-2 gap-3 mb-4">
                       {(['18h', '24h'] as RentalPeriod[]).map((p) => (
                         <button
                           key={p}
@@ -610,6 +820,38 @@ export default function App() {
                           {RENTAL_PERIOD_LABELS[p]}
                         </button>
                       ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs font-bold text-brand-black/60 mb-4">
+                      <CheckCircle2 size={14} />
+                      <span>Tipo de Aluguel:</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setRentalType('entry')}
+                        className={cn(
+                          "py-3 px-4 rounded-xl font-black uppercase italic text-[10px] transition-all border-2",
+                          rentalType === 'entry' 
+                            ? "bg-brand-black text-white border-brand-black shadow-lg" 
+                            : "bg-brand-silver/20 text-brand-black/40 border-transparent"
+                        )}
+                      >
+                        Entrada
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRentalType('renewal')}
+                        className={cn(
+                          "py-3 px-4 rounded-xl font-black uppercase italic text-[10px] transition-all border-2",
+                          rentalType === 'renewal' 
+                            ? "bg-brand-black text-white border-brand-black shadow-lg" 
+                            : "bg-brand-silver/20 text-brand-black/40 border-transparent"
+                        )}
+                      >
+                        Renovação
+                      </button>
                     </div>
                   </div>
 
@@ -629,6 +871,124 @@ export default function App() {
 
                   <SubmitButton label="Confirmar Aluguel" icon={<CheckCircle2 size={18} />} />
                 </form>
+              </motion.div>
+            )}
+
+            {currentView === 'reports' && (
+              <motion.div 
+                key="reports"
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -20, opacity: 0 }}
+                className="bg-white text-brand-black rounded-3xl p-6 shadow-2xl"
+              >
+                <button onClick={() => setCurrentView('home')} className="mb-6 flex items-center gap-2 text-brand-red font-bold">
+                  <ArrowLeft size={20} /> Voltar
+                </button>
+                <h2 className="text-2xl font-black uppercase italic mb-6">Relatório de Faturamento</h2>
+                
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="p-4 bg-brand-black text-white rounded-2xl shadow-lg">
+                    <p className="text-[10px] font-black uppercase italic opacity-60 mb-1">Total Geral</p>
+                    <h3 className="text-2xl font-black italic">R$ {rentals.reduce((acc, r) => acc + r.value, 0)},00</h3>
+                  </div>
+                  <div className="p-4 bg-brand-red text-white rounded-2xl shadow-lg">
+                    <p className="text-[10px] font-black uppercase italic opacity-60 mb-1">Qtd. Aluguéis</p>
+                    <h3 className="text-2xl font-black italic">{rentals.length}</h3>
+                  </div>
+                </div>
+
+                <div className="bg-brand-silver/20 p-4 rounded-2xl mb-6 border border-brand-silver">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-black uppercase italic text-brand-black/40">Filtrar por Tipo</h4>
+                    <div className="flex gap-2">
+                      {(['all', 'entry', 'renewal'] as const).map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setReportFilter(f)}
+                          className={cn(
+                            "px-3 py-1 rounded-lg text-[9px] font-black uppercase italic transition-all",
+                            reportFilter === f ? "bg-brand-black text-white" : "bg-brand-silver text-brand-black/40"
+                          )}
+                        >
+                          {f === 'all' ? 'Todos' : f === 'entry' ? 'Entrada' : 'Renovação'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-brand-black/40">Entradas</p>
+                      <p className="text-lg font-black italic">R$ {rentals.filter(r => r.type === 'entry').reduce((acc, r) => acc + r.value, 0)},00</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-brand-black/40">Renovações</p>
+                      <p className="text-lg font-black italic">R$ {rentals.filter(r => r.type === 'renewal').reduce((acc, r) => acc + r.value, 0)},00</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-brand-silver/20 p-4 rounded-2xl mb-6 border border-brand-silver">
+                  <h4 className="text-[10px] font-black uppercase italic text-brand-black/40 mb-3">Faturamento por Cliente</h4>
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                    {Array.from(new Set(rentals.map(r => r.customerName))).map(name => {
+                      const total = rentals.filter(r => r.customerName === name).reduce((acc, r) => acc + r.value, 0);
+                      return (
+                        <div key={name} className="flex justify-between items-center text-[10px] font-bold">
+                          <span className="uppercase italic">{name}</span>
+                          <span className="text-brand-red">R$ {total},00</span>
+                        </div>
+                      );
+                    })}
+                    {rentals.length === 0 && (
+                      <p className="text-center py-2 text-[9px] font-black uppercase italic text-brand-black/20">Sem dados</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  <h4 className="text-[10px] font-black uppercase italic text-brand-black/40 mb-2">Histórico de Transações</h4>
+                  {rentals
+                    .filter(r => reportFilter === 'all' || r.type === reportFilter)
+                    .sort((a, b) => Number(b.id) - Number(a.id))
+                    .map((rental) => (
+                    <div key={rental.id} className="p-3 bg-white rounded-xl border border-brand-silver/50 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center text-white",
+                          rental.type === 'entry' ? "bg-brand-black" : "bg-brand-red"
+                        )}>
+                          {rental.type === 'entry' ? <CheckCircle2 size={16} /> : <Clock size={16} />}
+                        </div>
+                        <div>
+                          <h5 className="text-[11px] font-black uppercase italic leading-none">{rental.customerName}</h5>
+                          <p className="text-[9px] font-bold text-brand-black/40 mt-1">{rental.date} - {MOTO_NAMES[rental.motoModel as MotoModel]}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-black italic">R$ {rental.value},00</p>
+                        <p className={cn(
+                          "text-[8px] font-black uppercase italic",
+                          rental.type === 'entry' ? "text-brand-black" : "text-brand-red"
+                        )}>{rental.type === 'entry' ? 'Entrada' : 'Renovação'}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {rentals.length === 0 && (
+                    <p className="text-center py-8 text-[10px] font-black uppercase italic text-brand-black/20">Nenhuma transação registrada</p>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => {
+                    if (confirm('Deseja limpar todo o histórico de faturamento?')) {
+                      setRentals([]);
+                    }
+                  }}
+                  className="w-full mt-6 p-3 bg-brand-silver/30 text-brand-black/40 rounded-xl text-[10px] font-black uppercase italic flex items-center justify-center gap-2 hover:bg-red-50 hover:text-red-500 transition-all"
+                >
+                  <Trash2 size={14} /> Limpar Histórico
+                </button>
               </motion.div>
             )}
 
@@ -666,6 +1026,15 @@ export default function App() {
           &copy; 2026 Juan Motos - Todos os direitos reservados
         </footer>
       </div>
+    </div>
+  );
+}
+
+function DetailItem({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="p-3 bg-brand-silver/20 rounded-xl border border-brand-silver/50">
+      <p className="text-[9px] font-black uppercase text-brand-black/40 mb-1">{label}</p>
+      <p className="text-sm font-bold text-brand-black">{value}</p>
     </div>
   );
 }

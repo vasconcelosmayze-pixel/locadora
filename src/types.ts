@@ -6,6 +6,7 @@ export interface Customer {
   address: string;
   photo?: string;
   rgPhoto?: string;
+  obs?: string;
 }
 
 export interface Rental {
@@ -16,6 +17,8 @@ export interface Rental {
   date: string;
   startTime: string;
   endTime: string;
+  type: 'entry' | 'renewal';
+  period: RentalPeriod;
 }
 
 export type MotoModel = 'biz-old' | 'biz-new' | 'pop-new' | 'fan-2020';
