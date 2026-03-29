@@ -87,16 +87,31 @@ export default function App() {
     window.open(url, '_blank');
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const rgInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'rgPhoto') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCustomerData(prev => ({ ...prev, [type]: reader.result as string }));
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const capturePhoto = (type: 'photo' | 'rgPhoto') => {
-    // In a real app, this would use the camera API
-    // For this demo, we'll simulate a capture
-    const simulatedUrl = `https://picsum.photos/seed/${Math.random()}/400/300`;
-    setCustomerData(prev => ({ ...prev, [type]: simulatedUrl }));
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
+    if (type === 'photo') {
+      fileInputRef.current?.click();
+    } else {
+      rgInputRef.current?.click();
+    }
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -428,6 +443,24 @@ export default function App() {
                 <h2 className="text-2xl font-black uppercase italic mb-6">Cadastro de Cliente</h2>
                 
                 <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  {/* Hidden Inputs for Camera */}
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    accept="image/*" 
+                    capture="user" 
+                    className="hidden" 
+                    onChange={(e) => handleFileChange(e, 'photo')} 
+                  />
+                  <input 
+                    type="file" 
+                    ref={rgInputRef} 
+                    accept="image/*" 
+                    capture="environment" 
+                    className="hidden" 
+                    onChange={(e) => handleFileChange(e, 'rgPhoto')} 
+                  />
+
                   <Input label="Nome Completo" placeholder="Ex: João Silva" onChange={e => setCustomerData({...customerData, name: e.target.value})} required />
                   <div className="grid grid-cols-2 gap-4">
                     <Input label="RG" placeholder="000.000.000" onChange={e => setCustomerData({...customerData, rg: e.target.value})} required />
@@ -437,8 +470,8 @@ export default function App() {
                   <Input label="Endereço" placeholder="Rua, Número, Bairro" onChange={e => setCustomerData({...customerData, address: e.target.value})} required />
                   
                   <div className="grid grid-cols-2 gap-4 py-2">
-                    <PhotoButton label="Foto do Cliente" active={!!customerData.photo} onClick={() => capturePhoto('photo')} />
-                    <PhotoButton label="Foto do RG" active={!!customerData.rgPhoto} onClick={() => capturePhoto('rgPhoto')} />
+                    <PhotoButton label="Foto do Cliente" active={!!customerData.photo} photoUrl={customerData.photo} onClick={() => capturePhoto('photo')} />
+                    <PhotoButton label="Foto do RG" active={!!customerData.rgPhoto} photoUrl={customerData.rgPhoto} onClick={() => capturePhoto('rgPhoto')} />
                   </div>
 
                   <div className="p-4 bg-brand-silver/50 rounded-xl border border-brand-black/10">
@@ -649,18 +682,23 @@ function Input({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> 
   );
 }
 
-function PhotoButton({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) {
+function PhotoButton({ label, active, photoUrl, onClick }: { label: string, active: boolean, photoUrl?: string, onClick: () => void }) {
   return (
     <button 
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed transition-all",
+        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed transition-all relative overflow-hidden h-32",
         active ? "bg-green-50 border-green-500 text-green-600" : "bg-brand-silver/30 border-brand-silver text-brand-black/40"
       )}
     >
-      {active ? <CheckCircle2 size={24} /> : <Camera size={24} />}
-      <span className="text-[10px] font-black uppercase">{label}</span>
+      {active && photoUrl ? (
+        <img src={photoUrl} alt={label} className="absolute inset-0 w-full h-full object-cover opacity-50" />
+      ) : null}
+      <div className="relative z-10 flex flex-col items-center gap-1">
+        {active ? <CheckCircle2 size={24} /> : <Camera size={24} />}
+        <span className="text-[10px] font-black uppercase text-center">{label}</span>
+      </div>
     </button>
   );
 }
